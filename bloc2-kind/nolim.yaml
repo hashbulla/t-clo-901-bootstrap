@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nolim
+spec:
+  containers:
+    - name: nolim
+      image: nginx:1.26
+      resources:
+        limits:
+          memory: "64Mi"

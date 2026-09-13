@@ -64,7 +64,7 @@ docker compose up --build -d
 
 Indice : `ls bootstrap`. Qu'est-ce que l'outil réclame, et qu'est-ce qui existe ?
 
-Deux effets de bord à connaître : un dossier `mysql-init/` apparaît, créé vide par Docker, inoffensif. Et si vous avez déjà lancé ce dépôt sur cette machine, un volume `sample-app_db_data` d'une exécution précédente est réutilisé en silence : `docker compose down -v` avant de reprendre, sinon 1.3 ne se produira pas.
+Deux effets de bord à connaître : un dossier `mysql-init/` apparaît, créé vide par Docker et appartenant à `root` (il est ignoré par Git ; pour le supprimer il faudra `sudo`). Et si vous avez déjà lancé ce dépôt sur cette machine, un volume `sample-app_db_data` d'une exécution précédente est réutilisé en silence : `docker compose down -v` avant de reprendre, sinon 1.3 ne se produira pas.
 
 **Question 1.2** — Pourquoi une image qui se construisait chez l'auteur ne se construit pas chez vous ? Quel est le nom de ce problème dans le métier ?
 
@@ -90,7 +90,7 @@ curl localhost/api/counter/add
 
 Encore un problème, et ce n'est pas le même. Regardez qui répond : l'en-tête `Server`. Quand vous avez compris quel composant échoue et pourquoi, le fichier manquant est dans [`bloc1-docker/htaccess`](bloc1-docker/htaccess), à la racine du dépôt (`../bloc1-docker/htaccess` depuis `sample-app/`) : copiez-le au bon endroit sous le bon nom, rebuild, puis faites incrémenter le compteur trois fois.
 
-Après tout rebuild, Traefik répond `Bad Gateway` pendant quelques secondes : le conteneur `app` redémarre. Attendez que `docker compose ps` le montre `Up`, puis réessayez.
+Si un `curl` juste après le rebuild répond `Bad Gateway`, Traefik n'a pas encore rebranché le conteneur `app` recréé : refaites-le une seconde plus tard. Ça ne se produit pas toujours.
 
 **Question 1.4** — Le bouton de la page `localhost/` appelle `/api/counter/add`. Avant votre correctif, marchait-il ? Comment le saviez-vous sans cliquer ?
 
@@ -109,14 +109,23 @@ Juste après un `up`, un `curl` peut rendre une réponse vide, un `404 page not 
 ```bash
 docker compose down -v
 docker compose up -d
-curl -i localhost/api/counter/count
+curl -s -o /dev/null -w '%{http_code}\n' localhost/api/counter/count
 ```
+
+Le `-o /dev/null` évite de recevoir la page d'erreur complète, plusieurs centaines de kilo-octets. Pour lire la cause : `curl -s localhost/api/counter/count | grep -m1 SQLSTATE`.
 
 **Question 1.5** — Expliquez la différence entre les deux résultats en une phrase. Qu'est-ce que ça implique pour une base de données dans un cluster ?
 
 ### 1.6 Le seed qui ne sème rien (5 min)
 
-Après le `down -v` de 1.5, le schéma n'existe plus. Rejouez la migration, puis le jeu de données que le `README.md` du sample-app annonce (`php artisan db:seed`), incrémentez le compteur trois fois, puis :
+Après le `down -v` de 1.5, le schéma n'existe plus. Attendez `healthy`, rejouez la migration, puis le jeu de données que le `README.md` du sample-app annonce, incrémentez le compteur trois fois, puis interrogez la base :
+
+```bash
+docker compose exec app php artisan migrate --force
+docker compose exec app php artisan db:seed --force
+for i in 1 2 3; do curl -s localhost/api/counter/add; echo; done
+```
+
 
 ```bash
 docker compose exec db mysql -uapp_user -papp_password app_database -e 'select count(*), sum(count) from counters;'
@@ -164,7 +173,10 @@ kubectl get pods -A
 
 ### 2.2 Un pod nu (10 min)
 
+Le pod créé en 2.1 télécharge son image, une dizaine de secondes. Attendez-le avant de l'exposer, comme vous avez attendu `healthy` au bloc 1 :
+
 ```bash
+kubectl wait pod web --for=condition=Ready --timeout=120s
 kubectl expose pod web --port=80
 kubectl port-forward svc/web 8080:80 &
 PF=$!
@@ -253,7 +265,14 @@ kubectl get pod oom -w
 
 Le statut passe par `ContainerCreating`, `Running`, puis `OOMKilled` en quelques secondes. Le `-w` ne s'arrête jamais seul : `Ctrl-C` dès que vous avez vu `OOMKilled`.
 
-**Question 2.5** — Les deux pods ont échoué pour des raisons opposées. Laquelle est une erreur de planification, laquelle une erreur d'exécution ? Que se passe-t-il si vous mettez des `limits` sans `requests` ? Testez-le.
+**Question 2.5** — Les deux pods ont échoué pour des raisons opposées. Laquelle est une erreur de planification, laquelle une erreur d'exécution ? Que se passe-t-il si vous mettez des `limits` sans `requests` ? Testez-le avec [`bloc2-kind/nolim.yaml`](bloc2-kind/nolim.yaml) :
+
+```bash
+kubectl apply -f bloc2-kind/nolim.yaml
+kubectl get pod nolim -o jsonpath='{.spec.containers[0].resources}{"\n"}'
+```
+
+Comparez avec le fichier que vous venez d'appliquer.
 
 ### 2.6 Nettoyer (2 min)
 

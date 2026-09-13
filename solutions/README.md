@@ -92,9 +92,4 @@ Réponse : l'application n'a jamais été en panne. La stratégie de rolling upd
 
 `big` : `Pending` en quelques secondes, `describe` montre `0/1 nodes are available: 1 Insufficient memory`. Le scheduler ne trouve aucun nœud capable d'honorer la réservation : erreur de planification. `oom` : `Running` puis `OOMKilled` en quelques secondes, souvent la même seconde. Le processus dépasse sa limite, le kernel le tue : erreur d'exécution.
 
-`limits` sans `requests` : Kubernetes recopie les limits dans les requests. Le pod tourne, mais le nœud est réservé à hauteur de la limite. Vérifiez avec :
-
-```bash
-kubectl run nolim --image=nginx:1.26 --overrides='{"spec":{"containers":[{"name":"nolim","image":"nginx:1.26","resources":{"limits":{"memory":"64Mi"}}}]}}'
-kubectl get pod nolim -o jsonpath='{.spec.containers[0].resources}{"\n"}'
-```
+`limits` sans `requests` : Kubernetes recopie les limits dans les requests. `nolim.yaml` ne déclare que `limits.memory: 64Mi` ; le pod créé porte `requests.memory: 64Mi` en plus. Le pod tourne, mais le nœud est réservé à hauteur de la limite.
