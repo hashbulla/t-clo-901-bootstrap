@@ -2,7 +2,7 @@
 
 > Deux blocs, deux heures, onze exercices. Vous tapez, ça casse, vous diagnostiquez. Rien de ce que vous faites ici n'ira dans votre rendu. Tout ce que vous apprenez ici, vous le réutiliserez jusqu'en février.
 
-Ce dépôt est autonome. Lisez-le dans l'ordre, faites chaque exercice, répondez par écrit à chaque question dans un fichier `notes.md` que vous gardez. Les solutions sont dans [`solutions/`](solutions/README.md) : ouvrez-les quand vous avez cherché dix minutes, pas avant. Personne ne vérifie, c'est votre temps.
+Ce dépôt est autoportant : l'application, les manifestes, le script d'installation, les solutions. Rien à récupérer ailleurs. Lisez-le dans l'ordre, faites chaque exercice, répondez par écrit à chaque question dans un fichier `notes.md` que vous gardez. Les solutions sont dans [`solutions/`](solutions/README.md) : ouvrez-les quand vous avez cherché dix minutes, pas avant. Personne ne vérifie, c'est votre temps.
 
 ## Ce que ce bootstrap revoit
 
@@ -22,15 +22,20 @@ Six notions, et rien d'autre. Si vous les maîtrisez déjà, allez vite ; si un 
 - Docker Engine avec Compose v2 : `docker compose version` doit répondre. Sinon : <https://docs.docker.com/engine/install/>.
 - `curl`, un terminal, un éditeur.
 - Le bloc 2 installe `kind` et `kubectl` : deux binaires, pas de droits admin, script fourni.
-- L'archive `sample-app-master.zip` est sur MY, dans le module. Elle n'est pas dans ce dépôt.
+- Git, pour cloner ce dépôt. C'est le seul téléchargement.
 
-Le lab AWS n'existe pas encore. Il se crée quand votre groupe existe sur l'Intra. Tout ce qui suit est local à votre machine.
+```bash
+git clone https://github.com/hashbulla/t-clo-901-bootstrap.git
+cd t-clo-901-bootstrap
+```
+
+L'application à manipuler est dans [`sample-app/`](sample-app/) : c'est celle du module, fournie par Epitech, reproduite ici telle quelle pour que le dépôt se suffise. Le lab AWS n'existe pas encore. Il se crée quand votre groupe existe sur l'Intra. Tout ce qui suit est local à votre machine.
 
 ---
 
 ## Bloc 1 — Docker, l'application telle qu'elle est aujourd'hui (60 min)
 
-Dézippez `sample-app-master.zip` et placez-vous dans `sample-app-master/`.
+Placez-vous dans `sample-app/` (`cd sample-app`). Toutes les commandes du bloc 1 se lancent de là.
 
 ### 1.1 Lire avant de lancer (10 min)
 
@@ -75,7 +80,7 @@ curl -i localhost/api/counter/count
 curl localhost/api/counter/add
 ```
 
-Encore un problème, et ce n'est pas le même. Regardez qui répond : l'en-tête `Server`. Quand vous avez compris quel composant échoue et pourquoi, le fichier manquant est dans [`bloc1-docker/htaccess`](bloc1-docker/htaccess) : copiez-le au bon endroit sous le bon nom, rebuild, puis faites incrémenter le compteur trois fois.
+Encore un problème, et ce n'est pas le même. Regardez qui répond : l'en-tête `Server`. Quand vous avez compris quel composant échoue et pourquoi, le fichier manquant est dans [`bloc1-docker/htaccess`](bloc1-docker/htaccess), à la racine du dépôt : copiez-le au bon endroit sous le bon nom, rebuild, puis faites incrémenter le compteur trois fois.
 
 **Question 1.4** — Le bouton de la page `localhost/` appelle `/api/counter/add`. Avant votre correctif, marchait-il ? Comment le saviez-vous sans cliquer ?
 
@@ -114,13 +119,15 @@ Comparez avec ce que renvoie l'API.
 
 ### Installer
 
-Linux x86_64 :
+Revenez à la racine du dépôt (`cd ..`). Linux x86_64 :
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hashbulla/t-clo-901-bootstrap/main/bloc2-kind/install.sh | bash
+bash bloc2-kind/install.sh
 export PATH="$HOME/.local/bin:$PATH"
 kind version && kubectl version --client
 ```
+
+Lisez le script avant de le lancer : douze lignes, deux `curl`, un `chmod`.
 
 macOS, Windows, ARM : <https://kind.sigs.k8s.io/docs/user/quick-start/#installation> et <https://kubernetes.io/docs/tasks/tools/>.
 
@@ -145,6 +152,7 @@ kubectl get pods -A
 ```bash
 kubectl expose pod web --port=80
 kubectl port-forward svc/web 8080:80 &
+sleep 2
 curl -i localhost:8080
 kill %1
 kubectl delete pod web
@@ -199,18 +207,20 @@ Indice : `kubectl get deployment hello -o yaml | grep -A4 strategy`.
 
 ### 2.5 Trop demander, trop peu autoriser (15 min)
 
+Lisez [`bloc2-kind/big.yaml`](bloc2-kind/big.yaml) et [`bloc2-kind/oom.yaml`](bloc2-kind/oom.yaml) avant de les appliquer : dites-vous ce que chacun va faire.
+
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/hashbulla/t-clo-901-bootstrap/main/bloc2-kind/big.yaml
+kubectl apply -f bloc2-kind/big.yaml
 kubectl get pod big
 kubectl describe pod big | tail -5
 ```
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/hashbulla/t-clo-901-bootstrap/main/bloc2-kind/oom.yaml
+kubectl apply -f bloc2-kind/oom.yaml
 kubectl get pod oom -w
 ```
 
-`Ctrl-C` quand le statut change. Lisez les deux manifestes dans [`bloc2-kind/`](bloc2-kind/) avant de répondre.
+`Ctrl-C` quand le statut change.
 
 **Question 2.5** — Les deux pods ont échoué pour des raisons opposées. Laquelle est une erreur de planification, laquelle une erreur d'exécution ? Que se passe-t-il si vous mettez des `limits` sans `requests` ? Testez-le.
 
@@ -244,4 +254,4 @@ Les sections suivantes du bootstrap national ne sont pas couvertes ici : bases d
 
 ---
 
-Victor Poiraud, intervenant T-CLO-901, Epitech Rennes 2026-2027. Commandes vérifiées le 13/09/2026 sur kind v0.33.0, Kubernetes v1.37.0, Docker Compose v2. Licence MIT.
+Victor Poiraud, intervenant T-CLO-901, Epitech Rennes 2026-2027. Commandes vérifiées le 13/09/2026 sur Linux x86_64, kind v0.33.0, Kubernetes v1.37.0, Docker Compose v2. Contenu du dépôt sous licence MIT ; `sample-app/` appartient à Epitech et n'est reproduit ici qu'à des fins pédagogiques pour le module.

@@ -36,7 +36,7 @@ Réponse : une étape de migration au démarrage, soit dans un entrypoint de `ap
 `curl -i localhost/api/counter/count` renvoie une page HTML 404 signée `Server: Apache`. Laravel n'est jamais atteint : `public/.htaccess` manque, `mod_rewrite` est activé (`a2enmod rewrite` dans le Dockerfile) mais n'a aucune règle. Contournement sans rebuild : `curl localhost/index.php/api/counter/count`.
 
 ```bash
-cp /chemin/vers/bloc1-docker/htaccess public/.htaccess
+cp ../bloc1-docker/htaccess public/.htaccess
 docker compose up --build -d
 curl localhost/api/counter/add
 ```
