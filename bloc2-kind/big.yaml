@@ -8,4 +8,4 @@ spec:
       image: nginx:1.26
       resources:
         requests:
-          memory: "64Gi"
+          memory: "1Ti"

@@ -1,6 +1,6 @@
 # Bootstrap T-CLO-901 — Docker, puis un cluster Kubernetes sur votre poste
 
-> Deux blocs, deux heures, onze exercices. Vous tapez, ça casse, vous diagnostiquez. Rien de ce que vous faites ici n'ira dans votre rendu. Tout ce que vous apprenez ici, vous le réutiliserez jusqu'en février.
+> Deux blocs, deux heures et quart, onze exercices. Vous tapez, ça casse, vous diagnostiquez. Rien de ce que vous faites ici n'ira dans votre rendu. Tout ce que vous apprenez ici, vous le réutiliserez jusqu'en février.
 
 Ce dépôt est autoportant : l'application, les manifestes, le script d'installation, les solutions. Rien à récupérer ailleurs. Lisez-le dans l'ordre, faites chaque exercice, répondez par écrit à chaque question dans un fichier `notes.md` que vous gardez. Les solutions sont dans [`solutions/`](solutions/README.md) : ouvrez-les quand vous avez cherché dix minutes, pas avant. Personne ne vérifie, c'est votre temps.
 
@@ -20,6 +20,8 @@ Six notions, et rien d'autre. Si vous les maîtrisez déjà, allez vite ; si un 
 ## Prérequis
 
 - Docker Engine avec Compose v2 : `docker compose version` doit répondre. Sinon : <https://docs.docker.com/engine/install/>.
+- Un shell **bash** (ou zsh) : Linux, macOS, WSL2 ou Git Bash sous Windows. Toutes les commandes sont écrites pour bash ; PowerShell et `cmd` ne sont pas couverts.
+- Les ports 80, 8081, 8082 et 8080 libres sur votre machine. Vérifiez avec `ss -ltnp` (Linux) ou `lsof -i :80` (macOS). Si le 80 est pris, l'application reste joignable sur 8081.
 - `curl`, un terminal, un éditeur.
 - Le bloc 2 installe `kind` et `kubectl` : deux binaires, pas de droits admin, script fourni.
 - Git, pour cloner ce dépôt. C'est le seul téléchargement.
@@ -29,7 +31,11 @@ git clone https://github.com/hashbulla/t-clo-901-bootstrap.git
 cd t-clo-901-bootstrap
 ```
 
-L'application à manipuler est dans [`sample-app/`](sample-app/) : c'est celle du module, fournie par Epitech, reproduite ici telle quelle pour que le dépôt se suffise. Le lab AWS n'existe pas encore. Il se crée quand votre groupe existe sur l'Intra. Tout ce qui suit est local à votre machine.
+L'application à manipuler est dans [`sample-app/`](sample-app/) : c'est celle du module, fournie par Epitech, reproduite ici telle quelle pour que le dépôt se suffise.
+
+Réseau : tout tire des images depuis Docker Hub (environ 1 Go au total, bloc 2 compris). Si vous voyez `toomanyrequests` ou `429`, le réseau du campus a épuisé le quota anonyme : un `docker login` avec un compte Docker Hub gratuit relève la limite.
+
+Le lab AWS n'existe pas encore. Il se crée quand votre groupe existe sur l'Intra. Tout ce qui suit est local à votre machine.
 
 ---
 
@@ -94,7 +100,7 @@ docker compose up -d
 curl localhost/api/counter/count
 ```
 
-Puis :
+Si le `curl` répond 500 juste après le `up`, la base n'est pas encore `healthy` : attendez quelques secondes et refaites-le. Puis :
 
 ```bash
 docker compose down -v
@@ -104,14 +110,19 @@ curl -i localhost/api/counter/count
 
 **Question 1.5** — Expliquez la différence entre les deux résultats en une phrase. Qu'est-ce que ça implique pour une base de données dans un cluster ?
 
-### 1.6 Sortie du bloc (5 min)
+### 1.6 Le seed qui ne sème rien (5 min)
+
+Après le `down -v` de 1.5, le schéma n'existe plus. Rejouez la migration, puis le jeu de données que le `README.md` du sample-app annonce (`php artisan db:seed`), incrémentez le compteur trois fois, puis :
 
 ```bash
 docker compose exec db mysql -uapp_user -papp_password app_database -e 'select count(*), sum(count) from counters;'
-docker compose down
 ```
 
-Comparez avec ce que renvoie l'API.
+Comparez avec ce que renvoie l'API. Puis lisez `database/seeders/DatabaseSeeder.php`, `database/seeders/CounterSeeder.php` et `database/factories/CounterFactory.php`.
+
+**Question 1.6** — Combien de lignes le seed a-t-il insérées, et pourquoi ? Que se passerait-il s'il était réellement branché ?
+
+Terminez par `docker compose down`.
 
 ---
 
@@ -127,7 +138,7 @@ export PATH="$HOME/.local/bin:$PATH"
 kind version && kubectl version --client
 ```
 
-Lisez le script avant de le lancer : douze lignes, deux `curl`, un `chmod`.
+Lisez le script avant de le lancer : deux téléchargements, deux vérifications de somme de contrôle, un `chmod`. Les versions sont épinglées à celles du cluster que kind va créer.
 
 macOS, Windows, ARM : <https://kind.sigs.k8s.io/docs/user/quick-start/#installation> et <https://kubernetes.io/docs/tasks/tools/>.
 
@@ -152,9 +163,10 @@ kubectl get pods -A
 ```bash
 kubectl expose pod web --port=80
 kubectl port-forward svc/web 8080:80 &
+PF=$!
 sleep 2
 curl -i localhost:8080
-kill %1
+kill $PF
 kubectl delete pod web
 kubectl get pods
 ```

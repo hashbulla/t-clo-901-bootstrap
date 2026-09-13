@@ -26,8 +26,10 @@ Réponse : le contexte de build dépendait d'un état du disque de l'auteur qui 
 `curl -i localhost/` répond `500`. `docker compose logs app` montre `Table 'app_database.counters' doesn't exist`. MySQL met une vingtaine de secondes à passer `healthy` ; avant, la connexion est refusée.
 
 ```bash
-docker compose exec app php artisan migrate --seed --force
+docker compose exec app php artisan migrate --force
 ```
+
+`--seed` ne change rien ici, vous verrez pourquoi en 1.6.
 
 Réponse : une étape de migration au démarrage, soit dans un entrypoint de `app`, soit dans un service one-shot qui dépend de `db` avec `condition: service_healthy`. Les deux se défendent.
 
@@ -51,13 +53,15 @@ Réponse : un conteneur est jetable, un volume survit au conteneur. Dans un clus
 
 ### 1.6
 
-`count(*)` compte les lignes, `sum(count)` additionne la colonne. L'API renvoie la somme. Après `--seed`, dix lignes à 0 : les deux chiffres diffèrent tant que vous n'avez pas incrémenté.
+`db:seed` lance `DatabaseSeeder`, dont le corps est une ligne commentée : il n'appelle jamais `CounterSeeder`. Zéro ligne insérée, et pourtant « Database seeding completed successfully ». S'il était branché, il planterait : `CounterFactory` remplit une colonne `counter` qui n'existe pas (la table a `count`), et le modèle `Counter` n'autorise aucune assignation de masse.
+
+Après trois incréments : `count(*)` vaut 3, `sum(count)` vaut 3, l'API renvoie 3. Les deux chiffres coïncident parce que chaque ligne vaut 1. Leçon : un message de succès n'est pas une preuve, seule la donnée l'est.
 
 ## Bloc 2
 
 ### 2.1
 
-`kubectl run` lancé quelques secondes après la création échoue avec `serviceaccount "default" not found` : le nœud est encore `NotReady`.
+`kubectl run` lancé quelques secondes après la création échoue avec `serviceaccount "default" not found` : le cluster finit de démarrer, le contrôleur qui crée le compte de service par défaut n'est pas encore passé, et le nœud est encore `NotReady`. Les deux faits sont liés au démarrage, pas l'un à l'autre ; en pratique, attendre le nœud `Ready` suffit.
 
 ```bash
 kubectl wait node --all --for=condition=Ready --timeout=120s

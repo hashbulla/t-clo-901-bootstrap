@@ -1,1 +1,5 @@
 notes.md
+sample-app/bootstrap/cache/
+sample-app/storage/
+sample-app/public/.htaccess
+sample-app/mysql-init/
