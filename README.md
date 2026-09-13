@@ -47,7 +47,7 @@ Placez-vous dans `sample-app/` (`cd sample-app`). Toutes les commandes du bloc 1
 
 Ouvrez `docker-compose.yaml` et `Dockerfile`. Sans rien lancer, répondez :
 
-- Combien de services ? Lesquels parlent à lesquels, et par quel nom ?
+- Combien de services ? qui parlent à qui, et par quel nom ?
 - Sur quels ports de votre machine l'application sera-t-elle joignable, et par combien de chemins ?
 - Où sont les mots de passe ?
 - À quoi sert le volume `db_data` ?
