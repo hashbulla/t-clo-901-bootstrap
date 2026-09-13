@@ -64,6 +64,8 @@ docker compose up --build -d
 
 Indice : `ls bootstrap`. Qu'est-ce que l'outil réclame, et qu'est-ce qui existe ?
 
+Deux effets de bord à connaître : un dossier `mysql-init/` apparaît, créé vide par Docker, inoffensif. Et si vous avez déjà lancé ce dépôt sur cette machine, un volume `sample-app_db_data` d'une exécution précédente est réutilisé en silence : `docker compose down -v` avant de reprendre, sinon 1.3 ne se produira pas.
+
 **Question 1.2** — Pourquoi une image qui se construisait chez l'auteur ne se construit pas chez vous ? Quel est le nom de ce problème dans le métier ?
 
 ### 1.3 Atteindre (10 min)
@@ -73,9 +75,9 @@ docker compose ps
 curl -i localhost/
 ```
 
-Le code HTTP n'est pas celui que vous attendiez. Trouvez pourquoi avec `docker compose logs app`, corrigez avec une commande `docker compose exec`, sans rebuild.
+Le code HTTP n'est pas celui que vous attendiez. Trouvez pourquoi : `docker compose logs app` ne dit que « 500 », la cause est dans le corps de la réponse (`curl -s localhost/ | grep -m1 SQLSTATE`), parce que `APP_DEBUG` est à `true`. Corrigez avec une commande `docker compose exec`, sans rebuild.
 
-Indice : l'application a besoin d'un schéma de base de données que personne n'a créé, et le `README.md` du sample-app nomme la commande. Si la base refuse la connexion, elle n'est pas encore prête : attendez `healthy` dans `docker compose ps`.
+Indice : l'application a besoin d'un schéma de base de données que personne n'a créé, et le `README.md` du sample-app nomme la commande. Si le corps dit `Connection refused`, la base n'est pas encore prête : attendez `healthy` dans `docker compose ps`.
 
 **Question 1.3** — Quelle étape manque au `docker-compose.yaml` pour que ce soit automatique ? Où la mettriez-vous ?
 
@@ -86,7 +88,9 @@ curl -i localhost/api/counter/count
 curl localhost/api/counter/add
 ```
 
-Encore un problème, et ce n'est pas le même. Regardez qui répond : l'en-tête `Server`. Quand vous avez compris quel composant échoue et pourquoi, le fichier manquant est dans [`bloc1-docker/htaccess`](bloc1-docker/htaccess), à la racine du dépôt : copiez-le au bon endroit sous le bon nom, rebuild, puis faites incrémenter le compteur trois fois.
+Encore un problème, et ce n'est pas le même. Regardez qui répond : l'en-tête `Server`. Quand vous avez compris quel composant échoue et pourquoi, le fichier manquant est dans [`bloc1-docker/htaccess`](bloc1-docker/htaccess), à la racine du dépôt (`../bloc1-docker/htaccess` depuis `sample-app/`) : copiez-le au bon endroit sous le bon nom, rebuild, puis faites incrémenter le compteur trois fois.
+
+Après tout rebuild, Traefik répond `Bad Gateway` pendant quelques secondes : le conteneur `app` redémarre. Attendez que `docker compose ps` le montre `Up`, puis réessayez.
 
 **Question 1.4** — Le bouton de la page `localhost/` appelle `/api/counter/add`. Avant votre correctif, marchait-il ? Comment le saviez-vous sans cliquer ?
 
@@ -100,7 +104,7 @@ docker compose up -d
 curl localhost/api/counter/count
 ```
 
-Si le `curl` répond 500 juste après le `up`, la base n'est pas encore `healthy` : attendez quelques secondes et refaites-le. Puis :
+Juste après un `up`, un `curl` peut rendre une réponse vide, un `404 page not found` de Traefik ou un `500 Connection refused` : la pile n'est pas encore prête. Attendez `healthy` dans `docker compose ps` et refaites-le, ici et à l'étape suivante. Puis :
 
 ```bash
 docker compose down -v
@@ -181,6 +185,11 @@ kubectl expose deployment hello --port=80
 kubectl get pods -l app=hello -o wide
 kubectl delete pod -l app=hello
 kubectl get pods -l app=hello
+```
+
+Le `delete` rend la main après une trentaine de secondes : c'est le délai de grâce laissé aux conteneurs pour s'arrêter proprement, pas un blocage.
+
+```bash
 kubectl scale deployment hello --replicas=4
 kubectl get pods -l app=hello
 ```
@@ -206,7 +215,17 @@ kubectl get pods -l app=hello
 kubectl get deployment hello
 ```
 
-Regardez combien de pods servent encore, dans quel état sont les nouveaux, et ce que dit la colonne `AVAILABLE`. Vérifiez au `curl` via un `port-forward` sur `svc/hello`. Puis :
+Regardez combien de pods servent encore, dans quel état sont les nouveaux, et ce que disent les colonnes `READY` et `AVAILABLE`. Vérifiez que l'application répond toujours :
+
+```bash
+kubectl port-forward svc/hello 8080:80 &
+PF=$!
+sleep 2
+curl -sI localhost:8080 | head -1
+kill $PF
+```
+
+Puis :
 
 ```bash
 kubectl rollout undo deployment/hello
@@ -232,7 +251,7 @@ kubectl apply -f bloc2-kind/oom.yaml
 kubectl get pod oom -w
 ```
 
-`Ctrl-C` quand le statut change.
+Le statut passe par `ContainerCreating`, `Running`, puis `OOMKilled` en quelques secondes. Le `-w` ne s'arrête jamais seul : `Ctrl-C` dès que vous avez vu `OOMKilled`.
 
 **Question 2.5** — Les deux pods ont échoué pour des raisons opposées. Laquelle est une erreur de planification, laquelle une erreur d'exécution ? Que se passe-t-il si vous mettez des `limits` sans `requests` ? Testez-le.
 

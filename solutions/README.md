@@ -23,7 +23,7 @@ Réponse : le contexte de build dépendait d'un état du disque de l'auteur qui 
 
 ### 1.3
 
-`curl -i localhost/` répond `500`. `docker compose logs app` montre `Table 'app_database.counters' doesn't exist`. MySQL met une vingtaine de secondes à passer `healthy` ; avant, la connexion est refusée.
+`curl -i localhost/` répond `500`. `docker compose logs app` ne montre que la ligne d'accès Apache ; le message `Table 'app_database.counters' doesn't exist` est dans le corps HTML de la réponse, parce que `APP_DEBUG=true` (une chose de plus à ne pas mettre en production). MySQL met une vingtaine de secondes à passer `healthy` ; avant, le corps dit `Connection refused`.
 
 ```bash
 docker compose exec app php artisan migrate --force
@@ -67,7 +67,7 @@ Après trois incréments : `count(*)` vaut 3, `sum(count)` vaut 3, l'API renvoie
 kubectl wait node --all --for=condition=Ready --timeout=120s
 ```
 
-Composants de `kube-system` : `kube-apiserver` (la porte d'entrée, tout passe par lui), `etcd` (l'état du cluster), `kube-scheduler` (choisit le nœud d'un pod), `kube-controller-manager` (fait converger l'état réel vers l'état désiré), `coredns` (DNS interne), `kindnet` (réseau entre pods), `local-path-provisioner` (stockage local). Le scheduler décide du nœud.
+Composants de `kube-system` : `kube-apiserver` (la porte d'entrée, tout passe par lui), `etcd` (l'état du cluster), `kube-scheduler` (choisit le nœud d'un pod), `kube-controller-manager` (fait converger l'état réel vers l'état désiré), `kube-proxy` (règles réseau des Services sur chaque nœud), `coredns` (DNS interne), `kindnet` (réseau entre pods). À part, dans le namespace `local-path-storage` : `local-path-provisioner` (stockage local). Le scheduler décide du nœud.
 
 ### 2.2
 
@@ -79,7 +79,7 @@ Le Deployment est l'état désiré, les pods sont l'état réel, le contrôleur 
 
 ### 2.4
 
-1.26 vers 1.27 : rollout propre, deux révisions dans l'historique. Vers `nginx:doesnotexist` : `rollout status` expire, les nouveaux pods sont en `ErrImagePull` puis `ImagePullBackOff`, trois anciens sur quatre continuent de servir, `AVAILABLE` indique `3/4`. `rollout undo` remet quatre pods en 1.27.
+1.26 vers 1.27 : rollout propre, deux révisions dans l'historique. Vers `nginx:doesnotexist` : `rollout status` expire, les nouveaux pods sont en `ErrImagePull` puis `ImagePullBackOff`, trois anciens sur quatre continuent de servir : `READY` indique `3/4`, `AVAILABLE` indique `3`. `rollout undo` remet quatre pods en 1.27.
 
 ```bash
 kubectl get deployment hello -o yaml | grep -A4 strategy
@@ -90,7 +90,7 @@ Réponse : l'application n'a jamais été en panne. La stratégie de rolling upd
 
 ### 2.5
 
-`big` : `Pending` en quelques secondes, `describe` montre `0/1 nodes are available: 1 Insufficient memory`. Le scheduler ne trouve aucun nœud capable d'honorer la réservation : erreur de planification. `oom` : `OOMKilled` en une dizaine de secondes. Le processus dépasse sa limite, le kernel le tue : erreur d'exécution.
+`big` : `Pending` en quelques secondes, `describe` montre `0/1 nodes are available: 1 Insufficient memory`. Le scheduler ne trouve aucun nœud capable d'honorer la réservation : erreur de planification. `oom` : `Running` puis `OOMKilled` en quelques secondes, souvent la même seconde. Le processus dépasse sa limite, le kernel le tue : erreur d'exécution.
 
 `limits` sans `requests` : Kubernetes recopie les limits dans les requests. Le pod tourne, mais le nœud est réservé à hauteur de la limite. Vérifiez avec :
 
